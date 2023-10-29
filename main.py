@@ -17,10 +17,12 @@ def aver_len(p_count, total_len):
 
 
 def sniffer(path='capture.csv', capture_time = 5, interf = 'eth0'):
-    header = ['time', 'count_packets', 'aver_packet_len', 'min_packet_len', 'max_packet_len', 'count_unicast',
+    header = ['time', 'number', 'count_packets', 'aver_packet_len', 'min_packet_len', 'max_packet_len', 'count_unicast',
               'count_multicast', 'count_segmented', 'count_ports_src', 'count_ports_dest','count_tcp',
               'count_udp', 'count_other_protocols', 'count_icmp', 'count_encrypted', 'count_with_opts',
               'count_syn', 'count_fin']
+    num = 0
+    print(*header, sep='\t')
     while True:
         data_pcap = sniff(timeout=capture_time, iface=interf)
         buffer: list = list()
@@ -69,51 +71,58 @@ def sniffer(path='capture.csv', capture_time = 5, interf = 'eth0'):
                         src_port.add(packet['TCP'].sport)
                         dst_port.add(packet['TCP'].dport)
                         count_tcp += 1
-                        # chech for encription by flag 0x18
-                        if packet['TCP'].flags == 0x18:
+                        if packet.haslayer('TLS') or packet.haslayer('SSL'):
                             count_encrypt += 1
                         elif packet['TCP'].flags == 0x01:
                             count_fin += 1
                         elif packet['TCP'].flags == 0x02:
                             count_syn += 1
-                    elif packet.haslayer('UDP'):
-                        count_udp += 1
-                        src_port.add(packet['UDP'].sport)
-                        dst_port.add(packet['UDP'].dport)
-                    elif packet.haslayer('ICMP'):
-                        count_icmp += 1
-                    else:
-                        count_other_prot += 1
+                elif packet.haslayer('UDP'):
+                    count_udp += 1
+                    src_port.add(packet['UDP'].sport)
+                    dst_port.add(packet['UDP'].dport)
+                elif packet.haslayer('ICMP'):
+                    count_icmp += 1
+                else:
+                    count_other_prot += 1
             aver_length = aver_len(p_count, total_length)
         elif len(data_pcap) == 0:
             p_len_min = 0
             p_len_max = 0
-        buffer = [time.strftime("%d.%m.%Y, %H:%M:%S", time.localtime()), p_count, aver_length, p_len_max, p_len_min,
+        buffer = [time.strftime("%d.%m.%Y, %H:%M:%S", time.localtime()), num, p_count, aver_length, p_len_max, p_len_min,
                 count_unicast, count_multicast, count_fragment, len(src_port), len(dst_port), count_tcp, count_udp,
                 count_other_prot, count_icmp, count_encrypt, count_ip_opts, count_syn, count_fin]
-        print(*buffer)
+        print(*buffer, sep='\t')
         with open(path, "a", newline='') as file:
             is_empty = os.path.getsize(path) == 0
             writer = csv.writer(file, lineterminator='\n')
             if is_empty:
                 writer.writerow(header)
             writer.writerow(buffer)
+        num += 1
 
 
 
-def main(file_path = 'capture.csv', timeout = 10, iface = 'eth0'):
-    parser = argparse.ArgumentParser(description='capture traffic from the interface')
+def main():
+    parser = argparse.ArgumentParser(description='capture traffic from the interface. Parametres'
+                                     'time, packet_number, packet_count, aver_length_of_packet, packet_len_max, '
+                                     'packet_len_min, count_unicast, count_multicast, count_fragment, '
+                                     'count_differ_src_port, count_differ_dst_port, count_tcp, count_udp, '
+                                     'count_other_transport_protocols, count_icmp, count_encrypt, count_ip_opts,'
+                                     ' count_syn, count_fin')
     subparser = parser.add_subparsers(dest='subparser_command')
     list_interfaces = subparser.add_parser('list_of_interfaces',
                                            description='Show interfaces')
 
     capture_traffic = subparser.add_parser('capture', description='capture traffic')
     capture_traffic.add_argument('interface', type=int, default=1, help='index of interface')
+    capture_traffic.add_argument('-t', '--time',type=int, default=10, help='specify agregate interfal for traffic '
+                                                                           'capture, sec')
     args = parser.parse_args()
     if args.subparser_command == 'list_of_interfaces':
         print_interfaces()
     elif args.subparser_command == 'capture':
-        sniffer(interf=scapy.interfaces.dev_from_index(args.interface))
+        sniffer(interf=scapy.interfaces.dev_from_index(args.interface), capture_time=args.time)
 
 if __name__ == '__main__':
     main()
