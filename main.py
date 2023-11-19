@@ -2,10 +2,8 @@ import time
 from typing import Set
 import scapy.interfaces
 from scapy.all import *
-import threading
 import argparse
 import csv
-from multiprocessing import Queue, Process
 import sys
 import signal
 
