@@ -51,8 +51,10 @@ def parser(data_pcap, num: int = 0, pcap_time=None):
     count_fragment: int = 0
     count_syn: int = 0
     count_fin: int = 0
-    src_port: Set[int] = set()
-    dst_port: Set[int] = set()
+    src_tcp_port: Set[int] = set()
+    dst_tcp_port: Set[int] = set()
+    src_udp_port: Set[int] = set()
+    dst_udp_port: Set[int] = set()
     if len(data_pcap) != 0:
         p_len_min: int = len(data_pcap[0])
         p_len_max: int = len(data_pcap[0])
@@ -63,41 +65,39 @@ def parser(data_pcap, num: int = 0, pcap_time=None):
                 p_len_max = len(packet)
             elif len(packet) < p_len_min:
                 p_len_min = len(packet)
-            # eth_src = packet.getlayer('Ether').src
             eth_dst = packet.getlayer('Ether').dst
-            if eth_dst == "ff:ff:ff:ff:ff:ff":
+            if eth_dst.startswith("01:00:5e") or eth_dst.startswith("33:33"):
                 count_multicast += 1
-            else:
+            elif eth_dst != 'ff:ff:ff:ff:ff:ff':
                 count_unicast += 1
             if packet.haslayer('IP'):
-                # p_src_ip = packet.getlayer('IP').src
-                # p_dst_ip = packet.getlayer('IP').dst
                 # check for options in packet
                 if packet['IP'].options:
                     count_ip_opts += 1
                 # check for fragmentation in packet
-                if packet['IP'].flags == 1:
+                if packet['IP'].flags:
                     count_fragment += 1
                 if packet.haslayer('TCP'):
-                    src_port.add(packet['TCP'].sport)
-                    dst_port.add(packet['TCP'].dport)
                     count_tcp += 1
+                    src_tcp_port.add(packet['TCP'].sport)
+                    dst_tcp_port.add(packet['TCP'].dport)
                     if packet.haslayer('TLS') or packet.haslayer('SSL'):
                         count_encrypt += 1
-                    elif packet['TCP'].flags == 0x01:
+                    if packet['TCP'].flags == 0x01:
                         count_fin += 1
-                    elif packet['TCP'].flags == 0x02:
+                    if packet['TCP'].flags == 0x02:
                         count_syn += 1
-            elif packet.haslayer('UDP'):
-                count_udp += 1
-                src_port.add(packet['UDP'].sport)
-                dst_port.add(packet['UDP'].dport)
-            elif packet.haslayer('ICMP'):
-                count_icmp += 1
-            else:
-                count_other_prot += 1
+                elif packet.haslayer('UDP'):
+                    count_udp += 1
+                    src_udp_port.add(packet['UDP'].sport)
+                    dst_udp_port.add(packet['UDP'].dport)
+                elif packet.haslayer('ICMP'):
+                    count_icmp += 1
+                else:
+                    count_other_prot += 1
     buffer = [local_time, num, p_count, aver_len(total_length, p_count), p_len_max, p_len_min,
-              count_unicast, count_multicast, count_fragment, len(src_port), len(dst_port), count_tcp, count_udp,
+              count_unicast, count_multicast, count_fragment, len(src_tcp_port), len(dst_tcp_port), len(src_udp_port),
+              len(dst_udp_port), count_tcp, count_udp,
               count_other_prot, count_icmp, count_encrypt, count_ip_opts, count_syn, count_fin]
     print(*buffer, sep='\t')
     return buffer
@@ -140,7 +140,9 @@ def main():
                                                  'time, packet_number, packet_count, aver_length_of_packet, '
                                                  'packet_len_max, '
                                                  'packet_len_min, count_unicast, count_multicast, count_fragment, '
-                                                 'count_differ_src_port, count_differ_dst_port, count_tcp, count_udp, '
+                                                 'count_differ_src_tcp_port, count_differ_dst_tcp_port,'
+                                                 'count_differ_src_udp_port, count_differ_dst_udp_port,'
+                                                 ' count_tcp, count_udp, '
                                                  'count_other_transport_protocols, count_icmp, count_encrypt, '
                                                  'count_ip_opts, count_syn, count_fin')
     subparser = parser.add_subparsers(dest='subparser_command')
