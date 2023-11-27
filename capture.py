@@ -29,11 +29,13 @@ def save_to_csv(path_out_csv='out.csv', buffer=None):
         writer.writerow(buffer)
 
 
+def aver_len(total_len, count_packets):
+    return round(total_len / count_packets, 2) if count_packets != 0 else 0
+
 def parser(data_pcap, num: int = 0, pcap_time=None):
     p_len_min = 0
     p_len_max = 0
     buffer: list = list()
-    aver_len = lambda x, y: round(x / y, 2) if y != 0 else 0
     if pcap_time is None:
         local_time = time.strftime("%d.%m.%Y, %H:%M:%S", time.localtime())
     else:
