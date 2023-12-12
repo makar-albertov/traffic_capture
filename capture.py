@@ -5,7 +5,6 @@ import csv
 import sys
 import signal
 import datetime
-
 from headers import base_header
 
 
@@ -31,6 +30,7 @@ def save_to_csv(path_out_csv='out.csv', buffer=None):
 
 def aver_len(total_len, count_packets):
     return round(total_len / count_packets, 2) if count_packets != 0 else 0
+
 
 def parser(data_pcap, num: int = 0, pcap_time=None):
     p_len_min = 0
@@ -67,36 +67,39 @@ def parser(data_pcap, num: int = 0, pcap_time=None):
                 p_len_max = len(packet)
             elif len(packet) < p_len_min:
                 p_len_min = len(packet)
-            eth_dst = packet.getlayer('Ether').dst
-            if eth_dst.startswith("01:00:5e") or eth_dst.startswith("33:33"):
-                count_multicast += 1
-            elif eth_dst != 'ff:ff:ff:ff:ff:ff':
-                count_unicast += 1
-            if packet.haslayer('IP'):
-                # check for options in packet
-                if packet['IP'].options:
-                    count_ip_opts += 1
-                # check for fragmentation in packet
-                if packet['IP'].flags:
-                    count_fragment += 1
-                if packet.haslayer('TCP'):
-                    count_tcp += 1
-                    src_tcp_port.add(packet['TCP'].sport)
-                    dst_tcp_port.add(packet['TCP'].dport)
-                    if packet.haslayer('TLS') or packet.haslayer('SSL'):
-                        count_encrypt += 1
-                    if packet['TCP'].flags == 0x01:
-                        count_fin += 1
-                    if packet['TCP'].flags == 0x02:
-                        count_syn += 1
-                elif packet.haslayer('UDP'):
-                    count_udp += 1
-                    src_udp_port.add(packet['UDP'].sport)
-                    dst_udp_port.add(packet['UDP'].dport)
-                elif packet.haslayer('ICMP'):
-                    count_icmp += 1
-                else:
-                    count_other_prot += 1
+            try:
+                eth_dst = packet['Ether'].dst
+                if eth_dst.startswith("01:00:5e") or eth_dst.startswith("33:33"):
+                    count_multicast += 1
+                elif eth_dst != 'ff:ff:ff:ff:ff:ff':
+                    count_unicast += 1
+                if packet.haslayer('IP'):
+                    # check for options in packet
+                    if packet['IP'].options:
+                        count_ip_opts += 1
+                    # check for fragmentation in packet
+                    if packet['IP'].flags:
+                        count_fragment += 1
+                    if packet.haslayer('TCP'):
+                        count_tcp += 1
+                        src_tcp_port.add(packet['TCP'].sport)
+                        dst_tcp_port.add(packet['TCP'].dport)
+                        if packet.haslayer('TLS') or packet.haslayer('SSL'):
+                            count_encrypt += 1
+                        if packet['TCP'].flags == 0x01:
+                            count_fin += 1
+                        if packet['TCP'].flags == 0x02:
+                            count_syn += 1
+                    elif packet.haslayer('UDP'):
+                        count_udp += 1
+                        src_udp_port.add(packet['UDP'].sport)
+                        dst_udp_port.add(packet['UDP'].dport)
+                    elif packet.haslayer('ICMP'):
+                        count_icmp += 1
+                    else:
+                        count_other_prot += 1
+            except:
+                continue
     buffer = [local_time, num, p_count, aver_len(total_length, p_count), p_len_max, p_len_min,
               count_unicast, count_multicast, count_fragment, len(src_tcp_port), len(dst_tcp_port), len(src_udp_port),
               len(dst_udp_port), count_tcp, count_udp,
