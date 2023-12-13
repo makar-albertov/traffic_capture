@@ -33,6 +33,14 @@ def aver_len(total_len, count_packets):
 
 
 def parser(data_pcap, num: int = 0, pcap_time=None):
+    FIN = 0x01
+    SYN = 0x02
+    RST = 0x04
+    PSH = 0x08
+    ACK = 0x10
+    URG = 0x20
+    ECE = 0x40
+    CWR = 0x80
     p_len_min = 0
     p_len_max = 0
     buffer: list = list()
@@ -78,17 +86,19 @@ def parser(data_pcap, num: int = 0, pcap_time=None):
                     if packet['IP'].options:
                         count_ip_opts += 1
                     # check for fragmentation in packet
-                    if packet['IP'].flags:
+                    if packet['IP'].flags == 'MF':
                         count_fragment += 1
                     if packet.haslayer('TCP'):
                         count_tcp += 1
                         src_tcp_port.add(packet['TCP'].sport)
                         dst_tcp_port.add(packet['TCP'].dport)
-                        if packet.haslayer('TLS') or packet.haslayer('SSL'):
+                        payload = bytes(packet['TCP'].payload)
+                        # payload in tls or ssl starts with this bytes
+                        if payload.startswith(b'\x16\x03') or payload.startswith(b'\x80\x02'):
                             count_encrypt += 1
-                        if packet['TCP'].flags == 0x01:
+                        if 'F' in packet['TCP'].flags:
                             count_fin += 1
-                        if packet['TCP'].flags == 0x02:
+                        if 'S' in packet['TCP'].flags:
                             count_syn += 1
                     elif packet.haslayer('UDP'):
                         count_udp += 1
@@ -96,7 +106,8 @@ def parser(data_pcap, num: int = 0, pcap_time=None):
                         dst_udp_port.add(packet['UDP'].dport)
                     elif packet.haslayer('ICMP'):
                         count_icmp += 1
-                    else:
+                        # 1- icmp, 6 - tcp, 17 - udp
+                    elif packet['IP'].proto not in {1, 6, 17}:
                         count_other_prot += 1
             except:
                 continue
